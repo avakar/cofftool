@@ -8,6 +8,39 @@ class Namespace:
     def __repr__(self):
         return '{{{}}}'.format(', '.join('{}: {!r}'.format(k, v) for k, v in self.__dict__.iteritems() if not k.startswith('_')))
 
+    def __iter__(self):
+        for k in self.__dict__:
+            if not k.startswith('_'):
+                yield k
+
+    def __getitem__(self, k):
+        return getattr(self, k)
+
+def pformat(v):
+    if isinstance(v, int) or isinstance(v, long):
+        return '0x{:x}'.format(v)
+    else:
+        return repr(v)
+
+def pprint(v, indent=''):
+    if isinstance(v, Namespace) or isinstance(v, dict):
+        for k in v:
+            vv = v[k]
+            if isinstance(vv, dict) or isinstance(vv, Namespace) or isinstance(vv, list):
+                print '{}{}:'.format(indent, k)
+                pprint(vv, indent=indent + '    ')
+            else:
+                print '{}{}: {}'.format(indent, k, pformat(vv))
+    elif isinstance(v, list):
+        for vv in v:
+            if isinstance(vv, dict) or isinstance(vv, Namespace) or isinstance(vv, list):
+                print '{} - '.format(indent)
+                pprint(vv, indent=indent + '    ')
+            else:
+                print '{} - {}'.format(indent, pformat(vv))
+    else:
+        print repr(v)
+
 def parse_coff(fin, offset_base=None):
     offset_base = offset_base or fin
 
@@ -197,7 +230,8 @@ def parse_lib(fin):
     for mem in members:
         if mem.name.startswith('/'):
             continue
-        mem.coff = parse_coff(mem.data, mem.data)
+        if mem.data.read_at(0, 4) != '\x00\x00\xff\xff':
+            mem.coff = parse_coff(mem.data, mem.data)
 
     return members
 
@@ -283,6 +317,7 @@ def _main():
     else:
         with open(args.input, 'rb') as fin:
             pe = parse_lib(file_chunk(fin))
+            pprint(pe)
 
 if __name__ == '__main__':
     _main()
